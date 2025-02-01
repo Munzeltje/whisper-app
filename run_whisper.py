@@ -1,4 +1,5 @@
 import os
+import configparser
 
 from docx import Document
 import PySimpleGUI as sg
@@ -6,6 +7,10 @@ import whisper
 from pyannote.audio import Pipeline
 from pyannote.core import Segment
 
+
+config = configparser.ConfigParser()
+config.read("config.ini")
+huggingface_token = config["huggingface"]["token"]
 
 layout = [
     [sg.Text("Select an audio file:")],
@@ -49,11 +54,38 @@ while True:
             sg.popup("Error", f"Failed to load Whisper model: {str(e)}")
 
         try:
+            pipeline = Pipeline.from_pretrained(
+                "pyannote/speaker-diarization-3.1",
+                use_auth_token=huggingface_token 
+            )
+            diarization = pipeline(audio_file)
+        except Exception as e:
+            sg.popup("Error", f"Speaker diarization failed: {str(e)}")
+            continue
+
+        try:
             model_output = model.transcribe(audio_file, language=language)
-            text = model_output["text"]
+            segments = model_output["segments"]
         except Exception as e:
             sg.popup("Error", f"Transcription failed: {str(e)}")
             continue
+
+        text = ""
+        for segment in segments:
+            start_time = segment["start"]
+            end_time = segment["end"]
+            text = segment["text"]
+
+            speaker = None
+            for turn, _, speaker_id in diarization.itertracks(yield_label=True):
+                if turn.start <= start_time <= turn.end:
+                    speaker = speaker_id
+                    break
+
+            if speaker:
+                text += f"[{speaker}]: {text}\n"
+            else:
+                text += f"[Unknown]: {text}\n"
 
         if output_file_type == "txt":
             try:
