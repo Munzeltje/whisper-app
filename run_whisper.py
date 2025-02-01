@@ -3,9 +3,9 @@ import os
 from docx import Document
 import PySimpleGUI as sg
 import whisper
+from pyannote.audio import Pipeline
+from pyannote.core import Segment
 
-
-model = whisper.load_model("tiny")
 
 layout = [
     [sg.Text("Select an audio file:")],
@@ -44,6 +44,11 @@ while True:
             continue
 
         try:
+            model = whisper.load_model(model_version)
+        except Exception as e:
+            sg.popup("Error", f"Failed to load Whisper model: {str(e)}")
+
+        try:
             model_output = model.transcribe(audio_file, language=language)
             text = model_output["text"]
         except Exception as e:
@@ -56,7 +61,7 @@ while True:
                 output_path = os.path.join(output_folder, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     f.write(text)
-            except:
+            except Exception as e:
                 sg.popup("Error", f"Saving txt file failed: {str(e)}")
                 continue
         elif output_file_type == "docx":
@@ -66,7 +71,7 @@ while True:
                 document = Document()
                 document.add_paragraph(text)
                 document.save(output_path)
-            except:
+            except Exception as e:
                 sg.popup("Error", f"Saving docx file failed: {str(e)}")
                 continue
 
