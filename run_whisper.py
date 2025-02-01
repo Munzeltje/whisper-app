@@ -1,5 +1,6 @@
 import os
 
+from docx import Document
 import PySimpleGUI as sg
 import whisper
 
@@ -13,8 +14,11 @@ layout = [
     [sg.Input(), sg.FolderBrowse(key="OUTPUT_FOLDER")],
     [sg.Text("Enter output file name (without extension):")],
     [sg.Input(key="OUTPUT_FILE")],
+    [sg.Text("Select output file type:")],
+    [sg.Combo(["txt", "docx"], default_value="docx", key="FILE_TYPE")],
     [sg.Text("Select Whisper model version:")],
     [sg.Combo(["tiny", "base", "small", "medium", "large", "turbo"], default_value="tiny", key="MODEL")],
+    [sg.Text("Select language that is spoken in the audio file:")],
     [sg.Combo(["nl", "en"], default_value="nl", key="LANGUAGE")],
     [sg.Button("Run Whisper"), sg.Button("Exit")],
     [sg.Text("", key="OUTPUT", size=(40, 3))],
@@ -31,11 +35,9 @@ while True:
         audio_file = values["AUDIO_FILE"]
         output_folder = values["OUTPUT_FOLDER"]
         output_name = values["OUTPUT_FILE"]
+        output_file_type = values["FILE_TYPE"]
         model_version = values["MODEL"]
         language = values["LANGUAGE"]
-
-        print(language)
-        print(type(language))
 
         if not audio_file or not output_folder or not output_name:
             sg.popup("Error", "Please fill in all fields.")
@@ -48,15 +50,25 @@ while True:
             sg.popup("Error", f"Transcription failed: {str(e)}")
             continue
 
-        output_file = f"{output_name}.txt"
-        output_path = os.path.join(output_folder, output_file)
-
-        try:
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write(text)
-        except Exception as e:
-            sg.popup("Error", f"Failed to write output file: {str(e)}")
-            continue
+        if output_file_type == "txt":
+            try:
+                output_file = f"{output_name}.txt"
+                output_path = os.path.join(output_folder, output_file)
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            except:
+                sg.popup("Error", f"Saving txt file failed: {str(e)}")
+                continue
+        elif output_file_type == "docx":
+            try:
+                output_file = f"{output_name}.docx"
+                output_path = os.path.join(output_folder, output_file)
+                document = Document()
+                document.add_paragraph(text)
+                document.save(output_path)
+            except:
+                sg.popup("Error", f"Saving docx file failed: {str(e)}")
+                continue
 
         output_message = (
             f"Audio file: {audio_file}\n"
