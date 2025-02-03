@@ -125,7 +125,7 @@ def run_transcription_pipeline(audio_processing_config, progress_callback):
     model = load_whisper_model(audio_processing_config["model_version"])
     if model is None:
         progress_callback("Error: Failed to load model")
-        return False
+        return None
 
     progress_callback("Transcribing audio...")
     model_output = transcribe_audio(
@@ -135,7 +135,7 @@ def run_transcription_pipeline(audio_processing_config, progress_callback):
     )
     if model_output is None:
         progress_callback("Error: Failed to transcribe audio.")
-        return False
+        return None
 
     progress_callback("Performing speaker diarization...")
     diarization = perform_diarization(
@@ -143,7 +143,7 @@ def run_transcription_pipeline(audio_processing_config, progress_callback):
     )
     if diarization is None:
         progress_callback("Error: Diarization failed.")
-        return False
+        return None
 
     progress_callback("Adding speakers to transcription...")
     text = add_speakers_to_transcription(model_output["segments"], diarization)
@@ -230,7 +230,7 @@ def run_app(hf_token, window):
 
             update_ui("Saving output file...")
             if not save_output_to_file(output_config, text):
-                update_ui("Error: Saving output faild")
+                update_ui("Error: Saving output failed")
                 continue
             update_ui("Transcription saved successfully!")
     window.close()
