@@ -104,7 +104,7 @@ def add_speakers_to_transcription(segments, diarization):
     return text
 
 
-def process_audio(audio_processing_config, output_config, window):
+def run_transcription_pipeline(audio_processing_config, output_config, window):
     if not validate_paths(
         audio_processing_config["audio_file"], output_config["folder"]
     ):
@@ -141,28 +141,37 @@ def process_audio(audio_processing_config, output_config, window):
     return True
 
 
+def save_as_txt(output_config, text):
+    try:
+        output_file = f"{output_config['file_name']}.txt"
+        output_path = os.path.join(output_config["folder"], output_file)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return True
+    except Exception as e:
+        sg.popup("Error", f"Saving txt file failed: {str(e)}")
+        return False
+
+
+def save_as_docx(output_config, text):
+    try:
+        output_file = f"{output_config['file_name']}.docx"
+        output_path = os.path.join(output_config["folder"], output_file)
+        document = Document()
+        document.add_paragraph(text)
+        document.save(output_path)
+        return True
+    except Exception as e:
+        sg.popup("Error", f"Saving docx file failed: {str(e)}")
+        return False
+
+
 def save_output_to_file(output_config, text):
     if output_config["file_type"] == "txt":
-        try:
-            output_file = f"{output_config['file_name']}.txt"
-            output_path = os.path.join(output_config["folder"], output_file)
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write(text)
-            return True
-        except Exception as e:
-            sg.popup("Error", f"Saving txt file failed: {str(e)}")
-            return False
+        saved = save_as_txt(output_config, text)
     elif output_config["file_type"] == "docx":
-        try:
-            output_file = f"{output_config['file_name']}.docx"
-            output_path = os.path.join(output_config["folder"], output_file)
-            document = Document()
-            document.add_paragraph(text)
-            document.save(output_path)
-            return True
-        except Exception as e:
-            sg.popup("Error", f"Saving docx file failed: {str(e)}")
-            return False
+        saved = save_as_docx(output_config, text)
+    return saved
 
 
 def run_app(hf_token, window):
@@ -196,7 +205,9 @@ def run_app(hf_token, window):
                 "file_type": output_file_type,
             }
 
-            if process_audio(audio_processing_config, output_config, window):
+            if run_transcription_pipeline(
+                audio_processing_config, output_config, window
+            ):
                 output_message = "Transcription saved successfully!"
                 window["OUTPUT"].update(output_message)
             else:
