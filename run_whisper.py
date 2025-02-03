@@ -45,12 +45,28 @@ def create_layout():
     return layout
 
 
+def validate_user_input_is_complete(audio_file, output_folder, output_file_name):
+    if not audio_file or not output_folder or not output_file_name:
+        return False
+    return True
+
+
 def validate_paths(audio_file, output_folder):
     if not os.path.isfile(audio_file):
         sg.popup("Error", f"Audio file does not exist: {audio_file}")
         return False
     if not os.path.isdir(output_folder):
         sg.popup("Error", f"Output folder does not exist: {output_folder}")
+        return False
+    return True
+
+
+def validate_user_input(audio_file, output_folder, output_file_name, callback):
+    if not validate_user_input_is_complete(audio_file, output_folder, output_file_name):
+        callback("Please fill in all fields.")
+        return False
+    if not validate_paths(audio_file, output_folder):
+        callback("Please make sure all given paths are valid.")
         return False
     return True
 
@@ -104,41 +120,35 @@ def add_speakers_to_transcription(segments, diarization):
     return text
 
 
-def run_transcription_pipeline(audio_processing_config, output_config, window):
-    if not validate_paths(
-        audio_processing_config["audio_file"], output_config["folder"]
-    ):
-        return False
-
-    window["OUTPUT"].update("Loading Whisper model...")
+def run_transcription_pipeline(audio_processing_config, progress_callback):
+    progress_callback("Loading Whisper model...")
     model = load_whisper_model(audio_processing_config["model_version"])
     if model is None:
+        progress_callback("Error: Failed to load model")
         return False
 
-    window["OUTPUT"].update("Transcribing audio...")
+    progress_callback("Transcribing audio...")
     model_output = transcribe_audio(
         model,
         audio_processing_config["audio_file"],
         audio_processing_config["language"],
     )
     if model_output is None:
+        progress_callback("Error: Failed to transcribe audio.")
         return False
 
-    window["OUTPUT"].update("Performing speaker diarization...")
+    progress_callback("Performing speaker diarization...")
     diarization = perform_diarization(
         audio_processing_config["audio_file"], audio_processing_config["hf_token"]
     )
     if diarization is None:
+        progress_callback("Error: Diarization failed.")
         return False
 
-    window["OUTPUT"].update("Adding speakers to transcription...")
+    progress_callback("Adding speakers to transcription...")
     text = add_speakers_to_transcription(model_output["segments"], diarization)
 
-    window["OUTPUT"].update("Saving output file...")
-    if not save_output_to_file(output_config, text):
-        return False
-
-    return True
+    return text
 
 
 def save_as_txt(output_config, text):
@@ -175,6 +185,12 @@ def save_output_to_file(output_config, text):
 
 
 def run_app(hf_token, window):
+    def update_ui(message):
+        window["OUTPUT"].update(message)
+
+    def popup(message):
+        sg.popup("Error", message)
+
     while True:
         event, values = window.read()
         if event == sg.WIN_CLOSED or event == "Exit":
@@ -188,8 +204,9 @@ def run_app(hf_token, window):
             model_version = values["MODEL"]
             language = values["LANGUAGE"]
 
-            if not audio_file or not output_folder or not output_file_name:
-                sg.popup("Error", "Please fill in all fields.")
+            if not validate_user_input(
+                audio_file, output_folder, output_file_name, callback=popup
+            ):
                 continue
 
             audio_processing_config = {
@@ -205,13 +222,17 @@ def run_app(hf_token, window):
                 "file_type": output_file_type,
             }
 
-            if run_transcription_pipeline(
-                audio_processing_config, output_config, window
-            ):
-                output_message = "Transcription saved successfully!"
-                window["OUTPUT"].update(output_message)
-            else:
+            text = run_transcription_pipeline(
+                audio_processing_config, progress_callback=update_ui
+            )
+            if text is None:
                 continue
+
+            update_ui("Saving output file...")
+            if not save_output_to_file(output_config, text):
+                update_ui("Error: Saving output faild")
+                continue
+            update_ui("Transcription saved successfully!")
     window.close()
 
 
