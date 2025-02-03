@@ -51,12 +51,12 @@ def validate_user_input_is_complete(audio_file, output_folder, output_file_name)
     return True
 
 
-def validate_paths(audio_file, output_folder):
+def validate_paths(audio_file, output_folder, callback):
     if not os.path.isfile(audio_file):
-        sg.popup("Error", f"Audio file does not exist: {audio_file}")
+        callback(f"Audio file does not exist: {audio_file}")
         return False
     if not os.path.isdir(output_folder):
-        sg.popup("Error", f"Output folder does not exist: {output_folder}")
+        callback(f"Output folder does not exist: {output_folder}")
         return False
     return True
 
@@ -65,31 +65,31 @@ def validate_user_input(audio_file, output_folder, output_file_name, callback):
     if not validate_user_input_is_complete(audio_file, output_folder, output_file_name):
         callback("Please fill in all fields.")
         return False
-    if not validate_paths(audio_file, output_folder):
+    if not validate_paths(audio_file, output_folder, callback):
         callback("Please make sure all given paths are valid.")
         return False
     return True
 
 
-def load_whisper_model(model_version):
+def load_whisper_model(model_version, error_popup_callback):
     try:
         model = whisper.load_model(model_version)
         return model
     except Exception as e:
-        sg.popup("Error", f"Failed to load Whisper model: {str(e)}")
+        error_popup_callback(f"Failed to load Whisper model: {str(e)}")
         return None
 
 
-def transcribe_audio(model, audio_file, language):
+def transcribe_audio(model, audio_file, language, error_popup_callback):
     try:
         model_output = model.transcribe(audio_file, language=language)
         return model_output
     except Exception as e:
-        sg.popup("Error", f"Transcription failed: {str(e)}")
+        error_popup_callback(f"Transcription failed: {str(e)}")
         return None
 
 
-def perform_diarization(audio_file, hf_token):
+def perform_diarization(audio_file, hf_token, error_popup_callback):
     try:
         pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1", use_auth_token=hf_token
@@ -97,7 +97,7 @@ def perform_diarization(audio_file, hf_token):
         diarization = pipeline(audio_file)
         return diarization
     except Exception as e:
-        sg.popup("Error", f"Speaker diarization failed: {str(e)}")
+        error_popup_callback(f"Speaker diarization failed: {str(e)}")
         return None
 
 
@@ -120,9 +120,13 @@ def add_speakers_to_transcription(segments, diarization):
     return text
 
 
-def run_transcription_pipeline(audio_processing_config, progress_callback):
+def run_transcription_pipeline(
+    audio_processing_config, progress_callback, error_popup_callback
+):
     progress_callback("Loading Whisper model...")
-    model = load_whisper_model(audio_processing_config["model_version"])
+    model = load_whisper_model(
+        audio_processing_config["model_version"], error_popup_callback
+    )
     if model is None:
         progress_callback("Error: Failed to load model")
         return None
@@ -132,6 +136,7 @@ def run_transcription_pipeline(audio_processing_config, progress_callback):
         model,
         audio_processing_config["audio_file"],
         audio_processing_config["language"],
+        error_popup_callback,
     )
     if model_output is None:
         progress_callback("Error: Failed to transcribe audio.")
@@ -139,7 +144,9 @@ def run_transcription_pipeline(audio_processing_config, progress_callback):
 
     progress_callback("Performing speaker diarization...")
     diarization = perform_diarization(
-        audio_processing_config["audio_file"], audio_processing_config["hf_token"]
+        audio_processing_config["audio_file"],
+        audio_processing_config["hf_token"],
+        error_popup_callback,
     )
     if diarization is None:
         progress_callback("Error: Diarization failed.")
@@ -151,7 +158,7 @@ def run_transcription_pipeline(audio_processing_config, progress_callback):
     return text
 
 
-def save_as_txt(output_config, text):
+def save_as_txt(output_config, text, error_popup_callback):
     try:
         output_file = f"{output_config['file_name']}.txt"
         output_path = os.path.join(output_config["folder"], output_file)
@@ -159,11 +166,11 @@ def save_as_txt(output_config, text):
             f.write(text)
         return True
     except Exception as e:
-        sg.popup("Error", f"Saving txt file failed: {str(e)}")
+        error_popup_callback(f"Saving txt file failed: {str(e)}")
         return False
 
 
-def save_as_docx(output_config, text):
+def save_as_docx(output_config, text, error_popup_callback):
     try:
         output_file = f"{output_config['file_name']}.docx"
         output_path = os.path.join(output_config["folder"], output_file)
@@ -172,15 +179,15 @@ def save_as_docx(output_config, text):
         document.save(output_path)
         return True
     except Exception as e:
-        sg.popup("Error", f"Saving docx file failed: {str(e)}")
+        error_popup_callback(f"Saving docx file failed: {str(e)}")
         return False
 
 
-def save_output_to_file(output_config, text):
+def save_output_to_file(output_config, text, error_popup_callback):
     if output_config["file_type"] == "txt":
-        saved = save_as_txt(output_config, text)
+        saved = save_as_txt(output_config, text, error_popup_callback)
     elif output_config["file_type"] == "docx":
-        saved = save_as_docx(output_config, text)
+        saved = save_as_docx(output_config, text, error_popup_callback)
     return saved
 
 
@@ -223,13 +230,15 @@ def run_app(hf_token, window):
             }
 
             text = run_transcription_pipeline(
-                audio_processing_config, progress_callback=update_ui
+                audio_processing_config,
+                progress_callback=update_ui,
+                error_popup_callback=popup,
             )
             if text is None:
                 continue
 
             update_ui("Saving output file...")
-            if not save_output_to_file(output_config, text):
+            if not save_output_to_file(output_config, text, error_popup_callback=popup):
                 update_ui("Error: Saving output failed")
                 continue
             update_ui("Transcription saved successfully!")
