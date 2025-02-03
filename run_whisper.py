@@ -5,7 +5,6 @@ from docx import Document
 import PySimpleGUI as sg
 import whisper
 from pyannote.audio import Pipeline
-from pyannote.core import Segment
 
 
 def load_huggingface_token(config_file):
@@ -14,10 +13,16 @@ def load_huggingface_token(config_file):
     hf_token = config["huggingface"]["token"]
     return hf_token
 
+
 def create_layout():
     layout = [
         [sg.Text("Select an audio file:")],
-        [sg.Input(), sg.FileBrowse(key="AUDIO_FILE", file_types=(("Audio Files", "*.wav *.mp3 *.flac"),))],
+        [
+            sg.Input(),
+            sg.FileBrowse(
+                key="AUDIO_FILE", file_types=(("Audio Files", "*.wav *.mp3 *.flac"),)
+            ),
+        ],
         [sg.Text("Select output folder:")],
         [sg.Input(), sg.FolderBrowse(key="OUTPUT_FOLDER")],
         [sg.Text("Enter output file name (without extension):")],
@@ -25,13 +30,20 @@ def create_layout():
         [sg.Text("Select output file type:")],
         [sg.Combo(["txt", "docx"], default_value="docx", key="FILE_TYPE")],
         [sg.Text("Select Whisper model version:")],
-        [sg.Combo(["tiny", "base", "small", "medium", "large", "turbo"], default_value="tiny", key="MODEL")],
+        [
+            sg.Combo(
+                ["tiny", "base", "small", "medium", "large", "turbo"],
+                default_value="tiny",
+                key="MODEL",
+            )
+        ],
         [sg.Text("Select language that is spoken in the audio file:")],
         [sg.Combo(["nl", "en"], default_value="nl", key="LANGUAGE")],
         [sg.Button("Run Whisper"), sg.Button("Exit")],
         [sg.Text("", key="OUTPUT", size=(40, 3))],
     ]
     return layout
+
 
 def validate_paths(audio_file, output_folder):
     if not os.path.isfile(audio_file):
@@ -42,6 +54,7 @@ def validate_paths(audio_file, output_folder):
         return False
     return True
 
+
 def load_whisper_model(model_version):
     try:
         model = whisper.load_model(model_version)
@@ -49,6 +62,7 @@ def load_whisper_model(model_version):
     except Exception as e:
         sg.popup("Error", f"Failed to load Whisper model: {str(e)}")
         return None
+
 
 def transcribe_audio(model, audio_file, language):
     try:
@@ -58,17 +72,18 @@ def transcribe_audio(model, audio_file, language):
         sg.popup("Error", f"Transcription failed: {str(e)}")
         return None
 
+
 def perform_diarization(audio_file, hf_token):
     try:
         pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
-            use_auth_token=hf_token 
+            "pyannote/speaker-diarization-3.1", use_auth_token=hf_token
         )
         diarization = pipeline(audio_file)
         return diarization
     except Exception as e:
         sg.popup("Error", f"Speaker diarization failed: {str(e)}")
         return None
+
 
 def add_speakers_to_transcription(segments, diarization):
     text = ""
@@ -87,6 +102,44 @@ def add_speakers_to_transcription(segments, diarization):
         else:
             text += f"[Unknown]: {segment_text}\n"
     return text
+
+
+def process_audio(audio_processing_config, output_config, window):
+    if not validate_paths(
+        audio_processing_config["audio_file"], output_config["folder"]
+    ):
+        return False
+
+    window["OUTPUT"].update("Loading Whisper model...")
+    model = load_whisper_model(audio_processing_config["model_version"])
+    if model is None:
+        return False
+
+    window["OUTPUT"].update("Transcribing audio...")
+    model_output = transcribe_audio(
+        model,
+        audio_processing_config["audio_file"],
+        audio_processing_config["language"],
+    )
+    if model_output is None:
+        return False
+
+    window["OUTPUT"].update("Performing speaker diarization...")
+    diarization = perform_diarization(
+        audio_processing_config["audio_file"], audio_processing_config["hf_token"]
+    )
+    if diarization is None:
+        return False
+
+    window["OUTPUT"].update("Adding speakers to transcription...")
+    text = add_speakers_to_transcription(model_output["segments"], diarization)
+
+    window["OUTPUT"].update("Saving output file...")
+    if not save_output_to_file(output_config, text):
+        return False
+
+    return True
+
 
 def save_output_to_file(output_config, text):
     if output_config["file_type"] == "txt":
@@ -111,34 +164,6 @@ def save_output_to_file(output_config, text):
             sg.popup("Error", f"Saving docx file failed: {str(e)}")
             return False
 
-def process_audio(audio_processing_config, output_config, window):
-    if not validate_paths(audio_processing_config["audio_file"], output_config["folder"]):
-        return False
-
-    window["OUTPUT"].update("Loading Whisper model...")
-    model = load_whisper_model(audio_processing_config["model_version"])
-    if model is None:
-        return False
-
-    window["OUTPUT"].update("Transcribing audio...")
-    model_output = transcribe_audio(model, audio_processing_config["audio_file"], audio_processing_config["language"])
-    if model_output is None:
-        return False
-
-    window["OUTPUT"].update("Performing speaker diarization...")
-    diarization = perform_diarization(audio_processing_config["audio_file"], audio_processing_config["hf_token"])
-    if diarization is None:
-        return False
-
-    window["OUTPUT"].update("Adding speakers to transcription...")
-    text = add_speakers_to_transcription(model_output["segments"], diarization)
-
-    window["OUTPUT"].update("Saving output file...")
-    if not save_output_to_file(output_config, text):
-        return False
-
-    return True
-
 
 def run_app(hf_token, window):
     while True:
@@ -159,20 +184,20 @@ def run_app(hf_token, window):
                 continue
 
             audio_processing_config = {
-                "audio_file" : audio_file,
-                "model_version" : model_version,
-                "language" : language,
-                "hf_token" : hf_token,
+                "audio_file": audio_file,
+                "model_version": model_version,
+                "language": language,
+                "hf_token": hf_token,
             }
 
             output_config = {
-            "folder" : output_folder,
-            "file_name" : output_file_name,
-            "file_type" : output_file_type,
+                "folder": output_folder,
+                "file_name": output_file_name,
+                "file_type": output_file_type,
             }
 
             if process_audio(audio_processing_config, output_config, window):
-                output_message = ("Transcription saved successfully!")
+                output_message = "Transcription saved successfully!"
                 window["OUTPUT"].update(output_message)
             else:
                 continue
@@ -184,6 +209,7 @@ def main():
     layout = create_layout()
     window = sg.Window("Whisper App", layout)
     run_app(hf_token, window)
+
 
 if __name__ == "__main__":
     main()
