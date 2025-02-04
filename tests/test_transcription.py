@@ -58,3 +58,34 @@ def test_transcribe_audio():
 
     assert result == "correct"
     mock_callback.assert_not_called()
+
+
+@patch.object(Pipeline, "from_pretrained")
+def test_perform_diarization(mock_from_pretrained):
+    test_audio_file = "filename.wav"
+    test_hf_token = "token"
+    mock_callback = Mock()
+
+    mock_pipeline = Mock()
+    mock_from_pretrained.return_value = mock_pipeline
+    mock_pipeline.return_value = "diarization"
+
+    result = perform_diarization(test_audio_file, test_hf_token, mock_callback)
+    expected = "diarization"
+
+    assert result == expected
+    mock_callback.assert_not_called()
+
+
+@patch.object(Pipeline, "from_pretrained")
+def test_perform_diarization_exception(mock_from_pretrained):
+    test_audio_file = "filename.wav"
+    test_hf_token = "token"
+    mock_callback = Mock()
+
+    mock_from_pretrained.side_effect = Exception("exception")
+
+    result = perform_diarization(test_audio_file, test_hf_token, mock_callback)
+
+    assert result is None
+    mock_callback.assert_called_once_with("Speaker diarization failed: exception")
