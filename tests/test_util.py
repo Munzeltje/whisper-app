@@ -1,12 +1,16 @@
 import tempfile
+import docx
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, mock_open
 
 from src.util import (
     load_huggingface_token,
     validate_user_input_types,
     validate_paths,
     validate_user_input,
+    save_as_txt,
+    save_as_docx,
+    save_output_to_file,
 )
 
 
@@ -164,7 +168,144 @@ def test_validate_user_input_invalid_paths(mock_validate_paths, mock_validate_ty
 
     mock_validate_types.return_value = True
     mock_validate_paths.return_value = False
+
     assert not validate_user_input(
         "audio.wav", "/output", "ouput_file.txt", mock_callback
     )
     mock_callback.assert_called_once()
+
+
+@patch("builtins.open", new_callable=mock_open)
+def test_save_as_txt(mock_file):
+    test_ouput_config = {
+        "folder": "/folder",
+        "file_name": "filename",
+        "file_type": "txt",
+    }
+    test_text = "This would be a transcription."
+    mock_callback = Mock()
+
+    expected_save_path = "/folder/filename.txt"
+
+    assert save_as_txt(test_ouput_config, test_text, mock_callback)
+    mock_file.assert_called_once_with(expected_save_path, "w", encoding="utf-8")
+    mock_callback.assert_not_called()
+
+
+@patch("builtins.open", new_callable=mock_open)
+def test_save_as_txt_permission_denied(mock_file_open):
+    mock_file_open.side_effect = OSError("Permission denied")
+
+    test_ouput_config = {
+        "folder": "/folder",
+        "file_name": "filename",
+        "file_type": "txt",
+    }
+    test_text = "This would be a transcription."
+    mock_callback = Mock()
+
+    expected_save_path = "/folder/filename.txt"
+    expected_message = "Saving txt file failed: Permission denied"
+
+    assert not save_as_txt(test_ouput_config, test_text, mock_callback)
+    mock_file_open.assert_called_once_with(expected_save_path, "w", encoding="utf-8")
+    mock_callback.assert_called_once_with(expected_message)
+
+
+@patch("src.util.Document")
+def test_save_as_docx(mock_document_class):
+    mock_document_instance = mock_document_class.return_value
+
+    test_ouput_config = {
+        "folder": "/folder",
+        "file_name": "filename",
+        "file_type": "docx",
+    }
+    test_text = "This would be a transcription."
+    mock_callback = Mock()
+
+    expected_save_path = "/folder/filename.docx"
+
+    assert save_as_docx(test_ouput_config, test_text, mock_callback)
+    mock_document_class.assert_called_once()
+    mock_document_instance.add_paragraph.assert_called_once_with(test_text)
+    mock_document_instance.save.assert_called_once_with(expected_save_path)
+    mock_callback.assert_not_called()
+
+
+@patch("src.util.Document")
+def test_save_as_docx_permission_denied(mock_document_class):
+    mock_document_instance = mock_document_class.return_value
+    mock_document_instance.save.side_effect = OSError("Permission denied")
+
+    test_ouput_config = {
+        "folder": "/folder",
+        "file_name": "filename",
+        "file_type": "docx",
+    }
+    test_text = "This would be a transcription."
+    mock_callback = Mock()
+
+    expected_save_path = "/folder/filename.docx"
+    expected_message = "Saving docx file failed: Permission denied"
+
+    assert not save_as_docx(test_ouput_config, test_text, mock_callback)
+    mock_document_class.assert_called_once()
+    mock_document_instance.add_paragraph.assert_called_once_with(test_text)
+    mock_document_instance.save.assert_called_once_with(expected_save_path)
+    mock_callback.assert_called_once_with(expected_message)
+
+
+@patch("src.util.save_as_docx")
+@patch("src.util.save_as_txt")
+def test_save_output_to_file_txt(mock_save_as_txt, mock_save_as_docx):
+    test_ouput_config = {
+        "folder": "/folder",
+        "file_name": "filename",
+        "file_type": "txt",
+    }
+    test_text = "This would be a transcription."
+    mock_callback = Mock()
+
+    mock_save_as_txt.return_value = True
+
+    assert save_output_to_file(test_ouput_config, test_text, mock_callback)
+    mock_save_as_txt.assert_called_once_with(
+        test_ouput_config, test_text, mock_callback
+    )
+    mock_callback.assert_not_called()
+    mock_save_as_docx.assert_not_called()
+
+
+@patch("src.util.save_as_docx")
+@patch("src.util.save_as_txt")
+def test_save_output_to_file_docx(mock_save_as_txt, mock_save_as_docx):
+    test_ouput_config = {
+        "folder": "/folder",
+        "file_name": "filename",
+        "file_type": "docx",
+    }
+    test_text = "This would be a transcription."
+    mock_callback = Mock()
+
+    mock_save_as_docx.return_value = True
+
+    assert save_output_to_file(test_ouput_config, test_text, mock_callback)
+    mock_save_as_docx.assert_called_once_with(
+        test_ouput_config, test_text, mock_callback
+    )
+    mock_callback.assert_not_called()
+    mock_save_as_txt.assert_not_called()
+
+
+def test_save_output_to_file_unsupported_file_type():
+    test_ouput_config = {
+        "folder": "/folder",
+        "file_name": "filename",
+        "file_type": "png",
+    }
+    test_text = "This would be a transcription."
+    mock_callback = Mock()
+
+    assert not save_output_to_file(test_ouput_config, test_text, mock_callback)
+    mock_callback.assert_called_once_with("Filetype is not supported: png")

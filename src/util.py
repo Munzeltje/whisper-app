@@ -84,4 +84,7 @@ def save_output_to_file(output_config, text, error_popup_callback):
         saved = save_as_txt(output_config, text, error_popup_callback)
     elif output_config["file_type"] == "docx":
         saved = save_as_docx(output_config, text, error_popup_callback)
+    else:
+        error_popup_callback(f"Filetype is not supported: {output_config['file_type']}")
+        saved = False
     return saved
