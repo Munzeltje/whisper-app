@@ -1,5 +1,4 @@
 import tempfile
-import docx
 import pytest
 from unittest.mock import Mock, patch, mock_open
 
