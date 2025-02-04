@@ -19,7 +19,7 @@ def test_load_whisper_model(mock_load_model):
 
 
 @patch("whisper.load_model")
-def test_load_whisper_model_invalid_model_version(mock_load_model):
+def test_load_whisper_model_invalid_model_version():
     test_model_version = "invalid_version"
     mock_callback = Mock()
 
