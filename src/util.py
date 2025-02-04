@@ -11,9 +11,10 @@ def load_huggingface_token(config_file):
     return hf_token
 
 
-def validate_user_input_is_complete(audio_file, output_folder, output_file_name):
-    if not audio_file or not output_folder or not output_file_name:
-        return False
+def validate_user_input_types(audio_file, output_folder, output_file_name):
+    for user_input in (audio_file, output_folder, output_file_name):
+        if not isinstance(user_input, str):
+            return False
     return True
 
 
@@ -21,14 +22,30 @@ def validate_paths(audio_file, output_folder, callback):
     if not os.path.isfile(audio_file):
         callback(f"Audio file does not exist: {audio_file}")
         return False
+
+    audio_file_suffix = audio_file.split(".")[-1]
+    if audio_file_suffix not in (
+        "mp3",
+        "wav",
+        "ogg",
+        "flac",
+        "mp4",
+        "m4a",
+        "aiff",
+        "caf",
+    ):
+        callback(f"File format is not supported: {audio_file_suffix}")
+        return False
+
     if not os.path.isdir(output_folder):
         callback(f"Output folder does not exist: {output_folder}")
         return False
+
     return True
 
 
 def validate_user_input(audio_file, output_folder, output_file_name, callback):
-    if not validate_user_input_is_complete(audio_file, output_folder, output_file_name):
+    if not validate_user_input_types(audio_file, output_folder, output_file_name):
         callback("Please fill in all fields.")
         return False
     if not validate_paths(audio_file, output_folder, callback):
