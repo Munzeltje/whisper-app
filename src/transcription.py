@@ -3,6 +3,11 @@ from pyannote.audio import Pipeline
 
 
 def load_whisper_model(model_version, error_popup_callback):
+    if not model_version in ("tiny", "base", "small", "medium", "large", "turbo"):
+        error_popup_callback(
+            f"Failed to load Whisper model: Invalid model version: {model_version}"
+        )
+        return None
     try:
         model = whisper.load_model(model_version)
         return model
