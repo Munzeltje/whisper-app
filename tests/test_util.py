@@ -3,7 +3,7 @@ import tempfile
 import pytest
 import configparser
 
-from run_whisper import load_huggingface_token
+from src.util import load_huggingface_token
 
 
 def test_load_huggingface_token():
