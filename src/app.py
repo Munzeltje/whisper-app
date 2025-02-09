@@ -35,6 +35,53 @@ def create_layout():
     return layout
 
 
+def get_user_input(values, error_popup_callback):
+    if not validate_user_input(
+        values["AUDIO_FILE"],
+        values["OUTPUT_FOLDER"],
+        values["OUTPUT_FILE"],
+        error_popup_callback,
+    ):
+        return None
+
+    user_input = {
+        "audio_file": values["AUDIO_FILE"],
+        "output_folder": values["OUTPUT_FOLDER"],
+        "output_file_name": values["OUTPUT_FILE"],
+        "file_type": values["FILE_TYPE"],
+        "model_version": values["MODEL"],
+        "language": values["LANGUAGE"],
+    }
+
+    return user_input
+
+
+def build_configs(user_input, hf_token):
+    audio_processing_config = {
+        "audio_file": user_input["audio_file"],
+        "model_version": user_input["model_version"],
+        "language": user_input["language"],
+        "hf_token": hf_token,
+    }
+
+    output_config = {
+        "folder": user_input["output_folder"],
+        "file_name": user_input["output_file_name"],
+        "file_type": user_input["file_type"],
+    }
+
+    return audio_processing_config, output_config
+
+
+def save_transcription(output_config, text, update_ui, error_popup_callback):
+    update_ui("Saving output file...")
+    if not save_output_to_file(output_config, text, error_popup_callback):
+        update_ui("Error: Saving output failed")
+        return False
+    update_ui("Transcription saved successfully!")
+    return True
+
+
 def run_app(hf_token, window):
     def update_ui(message):
         window["OUTPUT"].update(message)
@@ -48,30 +95,11 @@ def run_app(hf_token, window):
             break
 
         if event == "Run Whisper":
-            audio_file = values["AUDIO_FILE"]
-            output_folder = values["OUTPUT_FOLDER"]
-            output_file_name = values["OUTPUT_FILE"]
-            output_file_type = values["FILE_TYPE"]
-            model_version = values["MODEL"]
-            language = values["LANGUAGE"]
-
-            if not validate_user_input(
-                audio_file, output_folder, output_file_name, callback=popup
-            ):
+            user_input = get_user_input(values, popup)
+            if user_input is None:
                 continue
 
-            audio_processing_config = {
-                "audio_file": audio_file,
-                "model_version": model_version,
-                "language": language,
-                "hf_token": hf_token,
-            }
-
-            output_config = {
-                "folder": output_folder,
-                "file_name": output_file_name,
-                "file_type": output_file_type,
-            }
+            audio_processing_config, output_config = build_configs(user_input, hf_token)
 
             text = run_transcription_pipeline(
                 audio_processing_config,
@@ -81,9 +109,7 @@ def run_app(hf_token, window):
             if text is None:
                 continue
 
-            update_ui("Saving output file...")
-            if not save_output_to_file(output_config, text, error_popup_callback=popup):
-                update_ui("Error: Saving output failed")
+            if not save_transcription(output_config, text, update_ui, popup):
                 continue
-            update_ui("Transcription saved successfully!")
+
     window.close()
