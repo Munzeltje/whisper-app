@@ -112,7 +112,7 @@ def test_add_speakers_to_transcription():
 
     result = add_speakers_to_transcription(segments, mock_diarization)
 
-    expected = "[Speaker 1]: Hello\n[Speaker 1]: How are you?\n[Speaker 2]: Goodbye\n"
+    expected = "[Speaker 1]: Hello\n[Speaker 1]: How are you?\n[Speaker 2]: Goodbye"
 
     assert result == expected
 
@@ -129,7 +129,7 @@ def test_add_speakers_to_transcription_no_match():
 
     result = add_speakers_to_transcription(segments, mock_diarization)
 
-    expected = "[Unknown]: This is a test.\n"
+    expected = "[Unknown]: This is a test."
 
     assert result == expected
 
@@ -155,7 +155,7 @@ def test_add_speakers_to_transcription_empty_diarization():
 
     result = add_speakers_to_transcription(segments, mock_diarization)
 
-    expected_output = "[Unknown]: Hello\n"
+    expected_output = "[Unknown]: Hello"
 
     assert result == expected_output
 
