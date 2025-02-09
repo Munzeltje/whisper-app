@@ -8,6 +8,7 @@ from src.transcription import (
     transcribe_audio,
     perform_diarization,
     add_speakers_to_transcription,
+    run_transcription_pipeline,
 )
 
 
@@ -73,10 +74,10 @@ def test_perform_diarization(mock_from_pretrained):
 
     mock_pipeline = Mock()
     mock_from_pretrained.return_value = mock_pipeline
-    mock_pipeline.return_value = "diarization"
+    mock_pipeline.return_value = "mock_diarization"
 
     result = perform_diarization(test_audio_file, test_hf_token, mock_callback)
-    expected = "diarization"
+    expected = "mock_diarization"
 
     assert result == expected
     mock_callback.assert_not_called()
@@ -157,3 +158,129 @@ def test_add_speakers_to_transcription_empty_diarization():
     expected_output = "[Unknown]: Hello\n"
 
     assert result == expected_output
+
+
+@patch("src.transcription.load_whisper_model")
+@patch("src.transcription.transcribe_audio")
+@patch("src.transcription.perform_diarization")
+@patch("src.transcription.add_speakers_to_transcription")
+def test_run_transcription_pipeline(
+    mock_add_speakers, mock_diarization, mock_transcribe, mock_load_model
+):
+    config = {
+        "model_version": "tiny",
+        "audio_file": "filename.wav",
+        "language": "en",
+        "hf_token": "token",
+    }
+    mock_progress = Mock()
+    mock_error_popup = Mock()
+
+    mock_load_model.return_value = Mock()
+    mock_transcribe.return_value = {
+        "text": "Hello world",
+        "segments": [{"start": 0.5, "text": "Hello world"}],
+    }
+    mock_diarization.return_value = Mock()
+    mock_diarization.itertracks.return_value = [
+        (Mock(start=0.0, end=2.0), None, "Speaker 1"),
+    ]
+    mock_add_speakers.return_value = "[Speaker 1]: Hello world"
+
+    result = run_transcription_pipeline(config, mock_progress, mock_error_popup)
+
+    assert result == "[Speaker 1]: Hello world"
+    mock_progress.assert_called()
+    mock_error_popup.assert_not_called()
+
+    mock_load_model.assert_called_once()
+    mock_transcribe.assert_called_once()
+    mock_diarization.assert_called_once()
+    mock_add_speakers.assert_called_once()
+
+
+@patch("src.transcription.load_whisper_model", return_value=None)
+@patch("src.transcription.transcribe_audio")
+@patch("src.transcription.perform_diarization")
+@patch("src.transcription.add_speakers_to_transcription")
+def test_run_transcription_pipeline_model_fail(
+    mock_add_speakers, mock_diarization, mock_transcribe, mock_load_model
+):
+    config = {
+        "model_version": "tiny",
+        "audio_file": "filename.wav",
+        "language": "en",
+        "hf_token": "token",
+    }
+    mock_progress = Mock()
+    mock_error_popup = Mock()
+
+    result = run_transcription_pipeline(config, mock_progress, mock_error_popup)
+
+    assert result is None
+    mock_load_model.assert_called_once()
+    mock_progress.assert_called_with("Error: Failed to load model")
+    mock_error_popup.assert_not_called()
+    mock_transcribe.assert_not_called()
+    mock_diarization.assert_not_called()
+    mock_add_speakers.assert_not_called()
+
+
+@patch("src.transcription.load_whisper_model")
+@patch("src.transcription.transcribe_audio", return_value=None)
+@patch("src.transcription.perform_diarization")
+@patch("src.transcription.add_speakers_to_transcription")
+def test_run_transcription_pipeline_transcription_fail(
+    mock_add_speakers, mock_diarization, mock_transcribe, mock_load_model
+):
+    config = {
+        "model_version": "tiny",
+        "audio_file": "filename.wav",
+        "language": "en",
+        "hf_token": "token",
+    }
+    mock_progress = Mock()
+    mock_error_popup = Mock()
+
+    mock_load_model.return_value = Mock()
+
+    result = run_transcription_pipeline(config, mock_progress, mock_error_popup)
+
+    assert result is None
+    mock_load_model.assert_called_once()
+    mock_transcribe.assert_called_once()
+    mock_progress.assert_called_with("Error: Failed to transcribe audio.")
+    mock_diarization.assert_not_called()
+    mock_add_speakers.assert_not_called()
+
+
+@patch("src.transcription.load_whisper_model")
+@patch("src.transcription.transcribe_audio")
+@patch("src.transcription.perform_diarization", return_value=None)
+@patch("src.transcription.add_speakers_to_transcription")
+def test_run_transcription_pipeline_diarization_fail(
+    mock_add_speakers, mock_diarization, mock_transcribe, mock_load_model
+):
+    config = {
+        "model_version": "tiny",
+        "audio_file": "filename.wav",
+        "language": "en",
+        "hf_token": "token",
+    }
+    mock_progress = Mock()
+    mock_error_popup = Mock()
+
+    mock_load_model.return_value = Mock()
+    mock_transcribe.return_value = {
+        "text": "Hello world",
+        "segments": [{"start": 0.5, "text": "Hello world"}],
+    }
+
+    result = run_transcription_pipeline(config, mock_progress, mock_error_popup)
+
+    assert result is None
+    mock_load_model.assert_called_once()
+    mock_transcribe.assert_called_once()
+    mock_diarization.assert_called_once()
+    mock_progress.assert_called_with("Error: Diarization failed.")
+    mock_add_speakers.assert_not_called()
