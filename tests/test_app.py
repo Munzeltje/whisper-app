@@ -46,3 +46,12 @@ def test_create_layout_valid_elements_and_keys():
     assert len(keys) == len(set(keys)), "Duplicate keys found in layout"
     assert all(isinstance(key, str) for key in keys), "All keys should be strings"
 
+
+def test_run_app_exits_on_close():
+    mock_window = Mock()
+    mock_window.read.side_effect = [(sg.WIN_CLOSED, {})]
+
+    run_app("mock_hf_token", mock_window)
+
+    mock_window.read.assert_called()
+    mock_window.close.assert_called_once()
