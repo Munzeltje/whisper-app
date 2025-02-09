@@ -5,6 +5,8 @@ import PySimpleGUI as sg
 from src.app import (
     create_layout,
     get_user_input,
+    build_configs,
+    save_transcription,
     run_app,
 )
 
@@ -90,6 +92,77 @@ def test_get_user_input_invalid_input(mock_validate):
 
     assert get_user_input(test_values, mock_callback) is None
     mock_validate.assert_called_once()
+
+
+def test_build_configs():
+    test_user_input = {
+        "audio_file": "file.wav",
+        "output_folder": "output/folder",
+        "output_file_name": "output",
+        "file_type": "txt",
+        "model_version": "tiny",
+        "language": "en",
+    }
+    
+    test_hf_token = "mock_token"
+
+    expected_audio_config = {
+        "audio_file": "file.wav",
+        "model_version": "tiny",
+        "language": "en",
+        "hf_token": test_hf_token,
+    }
+
+    expected_output_config = {
+        "folder": "output/folder",
+        "file_name": "output",
+        "file_type": "txt",
+    }
+
+    audio_config, output_config = build_configs(test_user_input, test_hf_token)
+
+    assert audio_config == expected_audio_config, "Audio config does not match expected"
+    assert output_config == expected_output_config, "Output config does not match expected"
+
+
+@patch("src.app.save_output_to_file", return_value=True)
+def test_save_transcription_success(mock_save_output):
+    mock_update_ui = Mock()
+    mock_popup = Mock()
+
+    output_config = {
+        "folder": "output/folder",
+        "file_name": "output",
+        "file_type": "txt",
+    }
+    text = "Transcribed text"
+
+    assert save_transcription(output_config, text, mock_update_ui, mock_popup)
+
+    mock_update_ui.assert_any_call("Saving output file...")
+    mock_update_ui.assert_any_call("Transcription saved successfully!")
+
+    mock_save_output.assert_called_once_with(output_config, text, mock_popup)
+
+
+@patch("src.app.save_output_to_file", return_value=False)
+def test_save_transcription_failure(mock_save_output):
+    mock_update_ui = Mock()
+    mock_popup = Mock()
+
+    output_config = {
+        "folder": "output/folder",
+        "file_name": "output",
+        "file_type": "txt",
+    }
+    text = "Transcribed text"
+
+    assert not save_transcription(output_config, text, mock_update_ui, mock_popup)
+
+    mock_update_ui.assert_any_call("Saving output file...")
+    mock_update_ui.assert_any_call("Error: Saving output failed")
+
+    mock_save_output.assert_called_once_with(output_config, text, mock_popup)
 
 
 def test_run_app_exits_on_close():
