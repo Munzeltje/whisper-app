@@ -19,7 +19,7 @@ def test_load_whisper_model(mock_load_model):
     result = load_whisper_model(test_model_version, mock_callback)
     expected = mock_load_model.return_value
 
-    result == expected
+    assert result == expected
     mock_callback.assert_not_called()
 
 
@@ -57,11 +57,11 @@ def test_transcribe_audio():
     test_language = "en"
     mock_callback = Mock()
 
-    test_model.transcribe.return_value = "correct"
+    test_model.transcribe.return_value = {"text": "correct", "segments": []}
 
     result = transcribe_audio(test_model, test_audio_file, test_language, mock_callback)
 
-    assert result == "correct"
+    assert result == {"text": "correct", "segments": []}
     mock_callback.assert_not_called()
 
 
