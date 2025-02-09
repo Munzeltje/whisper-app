@@ -4,6 +4,7 @@ import PySimpleGUI as sg
 
 from src.app import (
     create_layout,
+    get_user_input,
     run_app,
 )
 
@@ -45,6 +46,50 @@ def test_create_layout_valid_elements_and_keys():
     keys = [el.key for el in elements if hasattr(el, "key") and el.key is not None]
     assert len(keys) == len(set(keys)), "Duplicate keys found in layout"
     assert all(isinstance(key, str) for key in keys), "All keys should be strings"
+
+
+@patch("src.app.validate_user_input", return_value=True)
+def test_get_user_input(mock_validate):
+    test_values = {
+        "AUDIO_FILE" : "file.wav",
+        "OUTPUT_FOLDER" : "output/folder",
+        "OUTPUT_FILE" : "output.txt",
+        "FILE_TYPE" : "txt",
+        "MODEL" : "tiny",
+        "LANGUAGE" : "en",
+    }
+
+    mock_callback = Mock()
+
+    expected = {
+        "audio_file" : "file.wav",
+        "output_folder" : "output/folder",
+        "output_file_name" : "output.txt",
+        "file_type" : "txt",
+        "model_version" : "tiny",
+        "language" : "en",
+    }
+
+    assert get_user_input(test_values, mock_callback) == expected
+    mock_validate.assert_called_once()
+    mock_callback.assert_not_called()
+
+
+@patch("src.app.validate_user_input", return_value=False)
+def test_get_user_input_invalid_input(mock_validate):
+    test_values = {
+        "AUDIO_FILE" : "file.wav",
+        "OUTPUT_FOLDER" : "output/folder",
+        "OUTPUT_FILE" : "output.txt",
+        "FILE_TYPE" : "txt",
+        "MODEL" : "tiny",
+        "LANGUAGE" : "en",
+    }
+
+    mock_callback = Mock()
+
+    assert get_user_input(test_values, mock_callback) is None
+    mock_validate.assert_called_once()
 
 
 def test_run_app_exits_on_close():
