@@ -3,7 +3,12 @@ from unittest.mock import Mock, patch
 import whisper
 from pyannote.audio import Pipeline
 
-from src.transcription import load_whisper_model, transcribe_audio, perform_diarization
+from src.transcription import (
+    load_whisper_model,
+    transcribe_audio,
+    perform_diarization,
+    add_speakers_to_transcription,
+)
 
 
 @patch("whisper.load_model")
@@ -19,7 +24,7 @@ def test_load_whisper_model(mock_load_model):
 
 
 @patch("whisper.load_model")
-def test_load_whisper_model_invalid_model_version():
+def test_load_whisper_model_invalid_model_version(mock_load_model):
     test_model_version = "invalid_version"
     mock_callback = Mock()
 
@@ -89,3 +94,66 @@ def test_perform_diarization_exception(mock_from_pretrained):
 
     assert result is None
     mock_callback.assert_called_once_with("Speaker diarization failed: exception")
+
+
+def test_add_speakers_to_transcription():
+    segments = [
+        {"start": 0.5, "text": "Hello"},
+        {"start": 2.0, "text": "How are you?"},
+        {"start": 5.5, "text": "Goodbye"},
+    ]
+
+    mock_diarization = Mock()
+    mock_diarization.itertracks.return_value = [
+        (Mock(start=0.0, end=3.0), None, "Speaker 1"),
+        (Mock(start=4.0, end=6.0), None, "Speaker 2"),
+    ]
+
+    result = add_speakers_to_transcription(segments, mock_diarization)
+
+    expected = "[Speaker 1]: Hello\n[Speaker 1]: How are you?\n[Speaker 2]: Goodbye\n"
+
+    assert result == expected
+
+
+def test_add_speakers_to_transcription_no_match():
+    segments = [
+        {"start": 10.0, "text": "This is a test."},
+    ]
+
+    mock_diarization = Mock()
+    mock_diarization.itertracks.return_value = [
+        (Mock(start=0.0, end=5.0), None, "Speaker 1"),
+    ]
+
+    result = add_speakers_to_transcription(segments, mock_diarization)
+
+    expected = "[Unknown]: This is a test.\n"
+
+    assert result == expected
+
+
+def test_add_speakers_to_transcription_empty_segments():
+    mock_diarization = Mock()
+    mock_diarization.itertracks.return_value = [
+        (Mock(start=0.0, end=5.0), None, "Speaker 1"),
+    ]
+
+    result = add_speakers_to_transcription([], mock_diarization)
+
+    assert result == ""
+
+
+def test_add_speakers_to_transcription_empty_diarization():
+    segments = [
+        {"start": 1.0, "text": "Hello"},
+    ]
+
+    mock_diarization = Mock()
+    mock_diarization.itertracks.return_value = []
+
+    result = add_speakers_to_transcription(segments, mock_diarization)
+
+    expected_output = "[Unknown]: Hello\n"
+
+    assert result == expected_output
