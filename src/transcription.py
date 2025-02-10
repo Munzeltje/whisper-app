@@ -3,6 +3,11 @@ from pyannote.audio import Pipeline
 
 
 def load_whisper_model(model_version, error_popup_callback):
+    if not model_version in ("tiny", "base", "small", "medium", "large", "turbo"):
+        error_popup_callback(
+            f"Failed to load Whisper model: Invalid model version: {model_version}"
+        )
+        return None
     try:
         model = whisper.load_model(model_version)
         return model
@@ -20,11 +25,14 @@ def transcribe_audio(model, audio_file, language, error_popup_callback):
         return None
 
 
-def perform_diarization(audio_file, hf_token, error_popup_callback):
+def perform_diarization(
+    audio_file,
+    hf_token,
+    error_popup_callback,
+    model_name="pyannote/speaker-diarization-3.1",
+):
     try:
-        pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1", use_auth_token=hf_token
-        )
+        pipeline = Pipeline.from_pretrained(model_name, use_auth_token=hf_token)
         diarization = pipeline(audio_file)
         return diarization
     except Exception as e:
@@ -33,21 +41,24 @@ def perform_diarization(audio_file, hf_token, error_popup_callback):
 
 
 def add_speakers_to_transcription(segments, diarization):
-    text = ""
+    speaker_map = {
+        (turn.start, turn.end): speaker_id
+        for turn, _, speaker_id in diarization.itertracks(yield_label=True)
+    }
+
+    text = []
     for segment in segments:
-        start_time = segment["start"]
-        segment_text = segment["text"]
+        speaker = next(
+            (
+                speaker_id
+                for (start, end), speaker_id in speaker_map.items()
+                if start <= segment["start"] <= end
+            ),
+            "Unknown",
+        )
+        text.append(f"[{speaker}]: {segment['text']}")
+    text = "\n".join(text)
 
-        speaker = None
-        for turn, _, speaker_id in diarization.itertracks(yield_label=True):
-            if turn.start <= start_time <= turn.end:
-                speaker = speaker_id
-                break
-
-        if speaker:
-            text += f"[{speaker}]: {segment_text}\n"
-        else:
-            text += f"[Unknown]: {segment_text}\n"
     return text
 
 

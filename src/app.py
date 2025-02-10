@@ -1,7 +1,7 @@
 import PySimpleGUI as sg
 
-from transcription import run_transcription_pipeline
-from util import validate_user_input, save_output_to_file
+from src.transcription import run_transcription_pipeline
+from src.util import validate_user_input, save_output_to_file
 
 
 def create_layout():

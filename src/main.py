@@ -1,7 +1,7 @@
 import PySimpleGUI as sg
 
-from app import create_layout, run_app
-from util import load_huggingface_token
+from src.app import create_layout, run_app
+from src.util import load_huggingface_token
 
 
 def main():
