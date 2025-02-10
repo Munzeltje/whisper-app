@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
 
 import PySimpleGUI as sg
 
@@ -165,6 +165,38 @@ def test_save_transcription_failure(mock_save_output):
     mock_save_output.assert_called_once_with(output_config, text, mock_popup)
 
 
+@patch("src.app.get_user_input")
+@patch("src.app.build_configs")
+@patch("src.app.run_transcription_pipeline")
+@patch("src.app.save_transcription")
+def test_run_app(
+    mock_save_transcription, mock_run_pipeline, mock_build_configs, mock_get_user_input
+):
+    mock_window = Mock()
+    mock_window.read.side_effect = [("Run Whisper", {}), (sg.WIN_CLOSED, {})]
+
+    mock_get_user_input.return_value = {
+        "audio_file": "test.wav",
+        "output_folder": "/output",
+        "output_file_name": "transcription",
+        "file_type": "txt",
+        "model_version": "base",
+        "language": "en",
+    }
+
+    mock_build_configs.return_value = (
+        {"audio_file": "test.wav", "model_version": "base", "language": "en", "hf_token": "mock_hf_token"},
+        {"folder": "/output", "file_name": "transcription", "file_type": "txt"},
+    )
+
+    run_app("mock_hf_token", mock_window)
+
+    mock_get_user_input.assert_called_once()
+    mock_build_configs.assert_called_once()
+    mock_run_pipeline.assert_called_once()
+    mock_save_transcription.assert_called_once()
+
+
 def test_run_app_exits_on_close():
     mock_window = Mock()
     mock_window.read.side_effect = [(sg.WIN_CLOSED, {})]
@@ -173,3 +205,90 @@ def test_run_app_exits_on_close():
 
     mock_window.read.assert_called()
     mock_window.close.assert_called_once()
+
+
+@patch("src.app.get_user_input", return_value=None)
+@patch("src.app.build_configs")
+@patch("src.app.run_transcription_pipeline")
+@patch("src.app.save_transcription")
+def test_run_app_handles_input_validation_failure(
+    mock_save_transcription, mock_run_pipeline, mock_build_configs, mock_get_user_input
+):
+    mock_window = Mock()
+
+    mock_window.read.side_effect = [
+        ("Run Whisper", {}),
+        (sg.WIN_CLOSED, {}),
+    ]
+
+    run_app("mock_hf_token", mock_window)
+
+    mock_get_user_input.assert_called_once()
+
+    mock_build_configs.assert_not_called()
+    mock_run_pipeline.assert_not_called()
+    mock_save_transcription.assert_not_called()
+
+
+@patch("src.app.get_user_input")
+@patch("src.app.build_configs")
+@patch("src.app.run_transcription_pipeline", return_value=None)
+@patch("src.app.save_transcription")
+def test_run_app_handles_transcription_failure(
+    mock_save_transcription, mock_run_pipeline, mock_build_configs, mock_get_user_input
+):
+    mock_window = Mock()
+    mock_window.read.side_effect = [("Run Whisper", {}), (sg.WIN_CLOSED, {})]
+
+    mock_get_user_input.return_value = {
+        "audio_file": "test.wav",
+        "output_folder": "/output",
+        "output_file_name": "transcription",
+        "file_type": "txt",
+        "model_version": "base",
+        "language": "en",
+    }
+
+    mock_build_configs.return_value = (
+        {"audio_file": "test.wav", "model_version": "base", "language": "en", "hf_token": "mock_hf_token"},
+        {"folder": "/output", "file_name": "transcription", "file_type": "txt"},
+    )
+
+    run_app("mock_hf_token", mock_window)
+
+    mock_get_user_input.assert_called_once()
+    mock_build_configs.assert_called_once()
+    mock_run_pipeline.assert_called_once()
+    mock_save_transcription.assert_not_called()
+
+
+@patch("src.app.get_user_input")
+@patch("src.app.build_configs")
+@patch("src.app.run_transcription_pipeline")
+@patch("src.app.save_transcription", return_value=False)
+def test_run_app_save_failed(
+    mock_save_transcription, mock_run_pipeline, mock_build_configs, mock_get_user_input
+):
+    mock_window = Mock()
+    mock_window.read.side_effect = [("Run Whisper", {}), (sg.WIN_CLOSED, {})]
+
+    mock_get_user_input.return_value = {
+        "audio_file": "test.wav",
+        "output_folder": "/output",
+        "output_file_name": "transcription",
+        "file_type": "txt",
+        "model_version": "base",
+        "language": "en",
+    }
+
+    mock_build_configs.return_value = (
+        {"audio_file": "test.wav", "model_version": "base", "language": "en", "hf_token": "mock_hf_token"},
+        {"folder": "/output", "file_name": "transcription", "file_type": "txt"},
+    )
+
+    run_app("mock_hf_token", mock_window)
+
+    mock_get_user_input.assert_called_once()
+    mock_build_configs.assert_called_once()
+    mock_run_pipeline.assert_called_once()
+    mock_save_transcription.assert_called_once()
