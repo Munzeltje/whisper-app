@@ -1,16 +1,30 @@
+from typing import Callable
+
 import PySimpleGUI as sg
 
 from src.transcription import run_transcription_pipeline
 from src.util import validate_user_input, save_output_to_file
 
 
-def create_layout():
+def create_layout() -> list[list[sg.Any]]:
+    """
+    Creates the UI for the app.
+
+    Returns:
+        list[list[sg.Any]]: a list of PySimpleGUI elements
+    """
     layout = [
         [sg.Text("Select an audio file:")],
         [
             sg.Input(),
             sg.FileBrowse(
-                key="AUDIO_FILE", file_types=(("Audio Files", "*.wav *.mp3 *.flac"),)
+                key="AUDIO_FILE",
+                file_types=(
+                    (
+                        "Audio Files",
+                        "*.wav *.mp3 *.flac *.ogg *.mp4 *.m4a *.aiff *.caf",
+                    ),
+                ),
             ),
         ],
         [sg.Text("Select output folder:")],
@@ -35,7 +49,20 @@ def create_layout():
     return layout
 
 
-def get_user_input(values, error_popup_callback):
+def get_user_input(values: dict, error_popup_callback: Callable) -> dict | None:
+    """
+    Takes values obtained through window.read and parse the user input. Calls callback
+    to throw an error and returns None in case of invalid input.
+
+    Args:
+        values (dict): values obtained through UI
+        error_popup_callback (Callable[str]): show user a popup with an error message
+            if input is invalid
+
+    Returns:
+        dict | None: either a dict with the parsed input if successful;
+            otherwise, None if an exception occurs.
+    """
     if not validate_user_input(
         values["AUDIO_FILE"],
         values["OUTPUT_FOLDER"],
@@ -52,11 +79,21 @@ def get_user_input(values, error_popup_callback):
         "model_version": values["MODEL"],
         "language": values["LANGUAGE"],
     }
-
     return user_input
 
 
-def build_configs(user_input, hf_token):
+def build_configs(user_input: dict, hf_token: str) -> tuple[dict, dict]:
+    """
+    Creates dicts to neatly keep track of information regarding the audio processing and
+    the saving of the output.
+
+    Args:
+        user_input (dict): input obtained from user, filepaths
+        hf_token (str): Hugging Face API token.
+
+    Returns:
+        tuple[dict, dict]: created configs
+    """
     audio_processing_config = {
         "audio_file": user_input["audio_file"],
         "model_version": user_input["model_version"],
@@ -73,7 +110,21 @@ def build_configs(user_input, hf_token):
     return audio_processing_config, output_config
 
 
-def save_transcription(output_config, text, update_ui, error_popup_callback):
+def save_transcription(
+    output_config: dict, text: str, update_ui: Callable, error_popup_callback: Callable
+) -> bool:
+    """
+    Calls save function and update the UI with progress.
+
+    Args:
+        output_config (dict): contains file information
+        text (str): the text that will be saved to the file
+        update_ui (Callable[str]): callback used to update UI with progress
+        error_popup_callback (Callable[str]): callback that creates popup in case of an error
+
+    Returns:
+        bool: whether or not transcription was saved successfully
+    """
     update_ui("Saving output file...")
     if not save_output_to_file(output_config, text, error_popup_callback):
         update_ui("Error: Saving output failed")
@@ -82,11 +133,21 @@ def save_transcription(output_config, text, update_ui, error_popup_callback):
     return True
 
 
-def run_app(hf_token, window):
-    def update_ui(message):
+def run_app(hf_token: str, window: sg.Window) -> None:
+    """
+    Reads user interaction with UI and respond accordingly, putting the flow
+    of the app together. Keep user informed of progress by updating UI throughout
+    the process.
+
+    Args:
+        hf_token (str): Hugging Face API token.
+        window (sg.Window): UI of the app
+    """
+
+    def update_ui(message: str) -> None:
         window["OUTPUT"].update(message)
 
-    def popup(message):
+    def popup(message: str) -> None:
         sg.popup("Error", message)
 
     while True:
@@ -109,7 +170,8 @@ def run_app(hf_token, window):
             if text is None:
                 continue
 
-            if not save_transcription(output_config, text, update_ui, popup):
+            saved = save_transcription(output_config, text, update_ui, popup)
+            if not saved:
                 continue
 
     window.close()
