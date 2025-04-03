@@ -25,7 +25,7 @@ def test_load_huggingface_token():
 
 
 def test_load_huggingface_token_no_file():
-    with pytest.raises(KeyError):
+    with pytest.raises(FileNotFoundError):
         load_huggingface_token("non_existent_file.ini")
 
 
