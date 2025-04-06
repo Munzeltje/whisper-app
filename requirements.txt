@@ -1,4 +1,6 @@
+--extra-index-url https://PySimpleGUI.net/install
+
 openai-whisper
 pyannote.audio
-pysimplegui
 python-docx
+PySimpleGUI>=5.0.10
