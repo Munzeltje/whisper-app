@@ -6,12 +6,12 @@ from src.transcription import run_transcription_pipeline
 from src.util import validate_user_input, save_output_to_file
 
 
-def create_layout() -> list[list[sg.Any]]:
+def create_layout() -> list[list[sg.Element]]:
     """
     Creates the UI for the app.
 
     Returns:
-        list[list[sg.Any]]: a list of PySimpleGUI elements
+        list[list[sg.Element]]: a list of PySimpleGUI elements
     """
     layout = [
         [sg.Text("Select an audio file:")],
