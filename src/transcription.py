@@ -3,6 +3,8 @@ from typing import Callable
 import whisper
 from pyannote.audio import Pipeline
 from pyannote.core.annotation import Annotation
+import torch
+import gc
 
 
 def load_whisper_model(
@@ -30,6 +32,20 @@ def load_whisper_model(
     except Exception as e:
         error_popup_callback(f"Failed to load Whisper model: {str(e)}")
         return None
+
+
+def unload_whisper_model(model: whisper.Whisper) -> None:
+    """
+    Unloads a Whisper model from memory to free up VRAM.
+
+    Args:
+        model (whisper.Whisper): The Whisper model to unload.
+    """
+    if model is None:
+        return
+    del model
+    gc.collect()
+    torch.cuda.empty_cache()
 
 
 def transcribe_audio(
@@ -127,6 +143,7 @@ def add_speakers_to_transcription(segments: list[dict], diarization: Annotation)
 
 
 def run_transcription_pipeline(
+    model: whisper.Whisper,
     audio_processing_config: dict,
     progress_callback: Callable,
     error_popup_callback: Callable,
@@ -146,12 +163,8 @@ def run_transcription_pipeline(
     Returns:
         str | None: A formatted transcription string with speaker labels if successful; otherwise, None if any step fails.
     """
-    progress_callback("Loading Whisper model...")
-    model = load_whisper_model(
-        audio_processing_config["model_version"], error_popup_callback
-    )
     if model is None:
-        progress_callback("Error: Failed to load model")
+        progress_callback("Error: No model given.")
         return None
 
     progress_callback("Transcribing audio...")

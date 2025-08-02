@@ -2,7 +2,7 @@ from typing import Callable
 
 import PySimpleGUI as sg
 
-from src.transcription import run_transcription_pipeline
+from src.transcription import run_transcription_pipeline, load_whisper_model, unload_whisper_model
 from src.util import validate_user_input, save_output_to_file
 
 
@@ -39,7 +39,8 @@ def create_layout() -> list[list[sg.Element]]:
                 ["tiny", "base", "small", "medium", "large", "turbo"],
                 default_value="tiny",
                 key="MODEL",
-            )
+            ),
+            sg.Button("Load model"),
         ],
         [sg.Text("Select language that is spoken in the audio file:")],
         [sg.Combo(["nl", "en"], default_value="nl", key="LANGUAGE")],
@@ -143,6 +144,7 @@ def run_app(hf_token: str, window: sg.Window) -> None:
         hf_token (str): Hugging Face API token.
         window (sg.Window): UI of the app
     """
+    model = None
 
     def update_ui(message: str) -> None:
         window["OUTPUT"].update(message)
@@ -153,9 +155,27 @@ def run_app(hf_token: str, window: sg.Window) -> None:
     while True:
         event, values = window.read()
         if event == sg.WIN_CLOSED or event == "Exit":
+            if model:
+                unload_whisper_model(model)
             break
 
+        if event == "Load model":
+            if model:
+                update_ui("Unloading previous model...")
+                unload_whisper_model(model)
+                update_ui("Previous model unloaded.")
+
+            model_version = values["MODEL"]
+            update_ui(f"Loading {model_version} model...")
+            model = load_whisper_model(model_version, popup)
+            if model:
+                update_ui(f"{model_version} model loaded successfully.")
+
         if event == "Run Whisper":
+            if not model:
+                popup("Please load a model first.")
+                continue
+
             user_input = get_user_input(values, popup)
             if user_input is None:
                 continue
@@ -163,6 +183,7 @@ def run_app(hf_token: str, window: sg.Window) -> None:
             audio_processing_config, output_config = build_configs(user_input, hf_token)
 
             text = run_transcription_pipeline(
+                model,
                 audio_processing_config,
                 progress_callback=update_ui,
                 error_popup_callback=popup,
